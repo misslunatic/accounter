@@ -2,19 +2,25 @@ use std::collections::HashMap;
 use accounter::{AuthError, AuthProvider, AuthSession, AuthUser, Permission};
 use accounter::AuthError::InvalidToken;
 
-// Setup...
-struct DemoUser<'a> {
-    data: &'a DemoProvider,
-    id: String,
+#[derive(Clone)]
+struct UserData {
+    name: String,
+    pronouns: String
 }
 
-impl<'a> DemoUser<'a> {
+// Setup...
+struct DemoUser {
+    id: String,
+    data: UserData
+}
+
+impl DemoUser {
     fn pronouns(&self) -> &String {
-        &self.data.users[&self.id].pronouns
+        &self.data.pronouns
     }
 }
 
-impl<'a> AuthUser for DemoUser<'a> {
+impl AuthUser for DemoUser {
     type Id = String;
 
     fn id(&self) -> Self::Id {
@@ -22,11 +28,11 @@ impl<'a> AuthUser for DemoUser<'a> {
     }
 }
 
-struct DemoSession<'a> {
-    user: DemoUser<'a>
+struct DemoSession {
+    user: DemoUser
 }
 
-impl<'a> AuthSession<DemoUser<'_>> for DemoSession<'a> {
+impl AuthSession<DemoUser> for DemoSession {
     fn user(&mut self) -> &mut DemoUser {
         &mut self.user
     }
@@ -38,11 +44,6 @@ impl<'a> AuthSession<DemoUser<'_>> for DemoSession<'a> {
     fn grant_permission(&mut self, permission: &Permission, state: bool) {
         todo!()
     }
-}
-
-struct UserData {
-    name: String,
-    pronouns: String
 }
 
 struct DemoProvider {
@@ -75,7 +76,7 @@ impl DemoProvider {
     }
 }
 
-impl<'a> AuthProvider<DemoUser<'_>, DemoSession<'_>> for DemoProvider {
+impl AuthProvider<DemoUser, DemoSession> for DemoProvider {
     type Token = String;
 
     fn valid_token(&self, token: Self::Token) -> bool {
@@ -85,24 +86,34 @@ impl<'a> AuthProvider<DemoUser<'_>, DemoSession<'_>> for DemoProvider {
     fn session_from_token(&self, token: Self::Token) -> Result<DemoSession, AuthError> {
         match self.tokens.get(&token) {
             Some(v) => {
-                Ok(DemoSession {
-                    user: DemoUser {
-                        data: &self,
-                        id: v.clone()
+                match self.users.get(v) {
+                    Some(data) => {
+                        Ok(DemoSession {
+                            user: DemoUser {
+                                data: data.clone(),
+                                id: v.clone()
+                            }
+                        })
                     }
-                })
+                    None => Err(AuthError::DataError),
+                }
             },
             None => Err(InvalidToken)
         }
     }
 
     fn session_from_id(&self, id: String) -> Result<DemoSession, AuthError> {
-        Ok(DemoSession {
-            user: DemoUser {
-                data: &self,
-                id: id.clone()
+        match self.users.get(&id) {
+            Some(data) => {
+                Ok(DemoSession {
+                    user: DemoUser {
+                        data: data.clone(),
+                        id: id.clone()
+                    }
+                })
             }
-        })
+            None => Err(AuthError::DataError),
+        }
     }
 }
 
@@ -112,15 +123,21 @@ fn main() -> Result<(), ()> {
     let mut auth = DemoProvider::new();
 
     auth.create_user("John Doe".to_string(), "password123".to_string());
+
     // Tokens are temporary keys to get in to a session - `login` creates a new token
     // `?` is being used to ignore Result<> for brevity.
-    let mut session = auth.session_from_token(auth.login("John Doe".to_string(), "password123".to_string())?)?;
+    let token = auth.login("John Doe".to_string(), "password123".to_string()).expect("err getting token");
+
+    let mut session = auth.session_from_token(token).expect("err getting session");
 
     assert!(!session.has_permission(&demo_permission));
+
     session.grant_permission(&demo_permission, true);
+
     assert!(session.has_permission(&demo_permission));
 
     let user_id = session.user().id();
+
     // Add custom functions on your implementation
     let pronouns = session.user().pronouns();
 

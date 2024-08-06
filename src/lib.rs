@@ -1,7 +1,10 @@
+#[derive(Debug)]
 pub enum AuthError {
-    InvalidToken
+    InvalidToken,
+    DataError
 }
 
+#[derive(PartialEq)]
 pub struct Permission<'a> {
     pub namespace: &'a str,
     pub name: &'a str,
