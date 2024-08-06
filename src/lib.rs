@@ -30,9 +30,9 @@ pub trait AuthSession<AU: AuthUser> {
     fn grant_permission(&mut self, permission: &Permission, state: bool);
 }
 
-pub trait AuthProvider<AU: AuthUser, AS: AuthSession<AU>> {
+pub trait AuthProvider<'a, AU: AuthUser, AS: AuthSession<AU>> {
     type Token;
     fn valid_token(&self, token: Self::Token) -> bool;
-    fn session_from_token(&self, token: Self::Token) -> Result<AS, AuthError>;
-    fn session_from_id(&self, id: AU::Id) -> Result<AS, AuthError>;
+    fn session_from_token(&'a self, token: Self::Token) -> Result<AS, AuthError>;
+    fn session_from_id(&'a self, id: AU::Id) -> Result<AS, AuthError>;
 }
